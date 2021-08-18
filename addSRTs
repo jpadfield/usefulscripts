@@ -1,0 +1,35 @@
+#!/bin/bash
+
+vFILES=./*.mp4
+
+mkdir -p out
+
+for f in $vFILES
+do
+	echo "Processing $f"
+	pat='(.+)[\/]([^\/]+)[.]mp4'
+  [[ "$f" =~ $pat ]]
+
+	narg="${BASH_REMATCH[2]//[^[:alnum:]]/*}"
+	stfs=$(find ./ -maxdepth 1 -name "*${narg}*" -name "*.srt")
+	frs=$(find ./fronts/ -maxdepth 1 -name "*${narg}*" -name "*.jpg")
+	
+	dims=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$f")
+	magick "${frs}" -resize ${dims} out.jpg
+	
+	echo "Adding $frs"
+	ffmpeg -loop 1 -framerate 25 -t 2 -i "out.jpg" \
+       -t 2 -f lavfi -i aevalsrc=0 \
+       -i "$f" \
+       -filter_complex '[0:0] [1:0] [2:0] [2:1] concat=n=2:v=1:a=1' \
+       input.mp4
+       
+	echo "Checking $stfs"
+	ffmpeg -itsoffset 2 -i "$stfs" -c copy delayed.srt
+	ffmpeg -y -i input.mp4 -i delayed.srt -c copy -c:s mov_text "out/${BASH_REMATCH[2]}.mp4"
+	
+	rm out.jpg
+	rm delayed.srt
+	rm input.mp4
+	#break
+done
