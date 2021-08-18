@@ -1,0 +1,66 @@
+#!/usr/bin/python3
+
+import pyvips, sys, os
+
+def PYR_makePyr_Py(pathIn, pathOut, comp, gv, force8bit, bigT):
+	rstr = ""
+	restr = ""	
+	print ("PYR_makePyr_Py: " + str(pathIn) + "\n")
+	tilesize = "256"	
+	do = 0
+	imx = 0
+	imy = 0	
+	comp = int(comp)
+	if (comp < 0):
+		comp = False
+	elif (comp > 100):
+		comp = 100	
+	
+	if not os.path.isfile(pathOut):
+		if os.path.isfile(pathIn):
+			print ("\tTrying " + str(pathIn) + "\n")
+			try:
+				im = pyvips.Image.new_from_file(pathIn, access='sequential')
+				imBands = im.bands
+				imBFmt = im.format
+				imType = im.interpretation
+				imx = im.width
+				imy = im.height
+				im = im.crop(0,0,int(0.8*imx),int(0.8*imy))
+				
+				if gv:
+					# with the change to vips8 gamma value is passed as 1/gv rather than gv
+					im = im.gamma(exponent = float(1/float(gv)))
+					imBFmt = 0
+				if force8bit:
+					if imBands == 1 and imBFmt == "ushort" and imType == "grey16":
+						im = (im.linear (0.004,0, uchar=True))
+					elif imBands == 3 and imBFmt == "ushort" and imType == "rgb16":
+						im = (im.linear (0.004,0, uchar=True))
+				if (comp > 0):	
+					im.tiffsave(pathOut,Q=comp,tile=True,tile_width=tilesize,tile_height=tilesize,pyramid=True,bigtiff=bigT)
+				else:
+					im.tiffsave(pathOut,tile=True,tile_width=tilesize,tile_height=tilesize,pyramid=True,bigtiff=bigT)
+				
+				#do = do + 1			
+				do = 1			
+			except pyvips.Error as e:
+				print ("With VIPS functions: " + pathIn)
+				print (str(e))
+				do = -1
+		else:
+			print ("With file: " + pathIn)
+			do = -1
+	else:		
+		try:		
+			im = pyvips.Image.new_from_file(pathOut, access='sequential')
+			imx = im.width
+			imy = im.height
+			print ("EXISTING Image: " + str(imx) + " x " + str(imy) + " pixels")
+		except pyvips.Error as e:
+			restr += "With VIPS functions: " + pathIn
+			restr += str(e)
+			do = -1
+	return [do, imx, imy, rstr, restr]
+
+PYR_makePyr_Py(sys.argv[1], sys.argv[2], 95, False, 1, True)
